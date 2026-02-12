@@ -1,7 +1,6 @@
 package com.mininetflix.controller;
 
 import com.mininetflix.dto.AuthDto.*;
-import com.mininetflix.ratelimit.RateLimitService;
 import com.mininetflix.service.AuthService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;

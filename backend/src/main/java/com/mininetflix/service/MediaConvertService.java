@@ -155,7 +155,7 @@ public class MediaConvertService {
         return Output.builder()
                 .nameModifier("_" + nameModifier)
                 .containerSettings(ContainerSettings.builder()
-                        .container(ContainerType.M3U8)
+                        .container(ContainerType.M3_U8)
                         .build())
                 .videoDescription(VideoDescription.builder()
                         .width(width)

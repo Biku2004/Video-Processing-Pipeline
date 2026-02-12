@@ -19,9 +19,10 @@
 
     <properties>
         <java.version>17</java.version>
-        <aws.sdk.version>2.21.33</aws.sdk.version>
+        <aws.sdk.version>2.25.27</aws.sdk.version>
         <bucket4j.version>8.7.0</bucket4j.version>
         <jjwt.version>0.12.3</jjwt.version>
+        <lombok.version>1.18.42</lombok.version>
     </properties>
 
     <dependencies>
@@ -96,11 +97,6 @@
             <artifactId>mediaconvert</artifactId>
             <version>${aws.sdk.version}</version>
         </dependency>
-        <dependency>
-            <groupId>software.amazon.awssdk</groupId>
-            <artifactId>s3-presigner</artifactId>
-            <version>${aws.sdk.version}</version>
-        </dependency>
 
         <!-- Rate Limiting with Bucket4j + Redis -->
         <dependency>
@@ -140,6 +136,21 @@
 
     <build>
         <plugins>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-compiler-plugin</artifactId>
+                <version>3.13.0</version>
+                <configuration>
+                    <release>17</release>
+                    <annotationProcessorPaths>
+                        <path>
+                            <groupId>org.projectlombok</groupId>
+                            <artifactId>lombok</artifactId>
+                            <version>${lombok.version}</version>
+                        </path>
+                    </annotationProcessorPaths>
+                </configuration>
+            </plugin>
             <plugin>
                 <groupId>org.springframework.boot</groupId>
                 <artifactId>spring-boot-maven-plugin</artifactId>

@@ -4,6 +4,8 @@ import com.mininetflix.dto.AuthDto.*;
 import com.mininetflix.model.User;
 import com.mininetflix.repository.UserRepository;
 import com.mininetflix.security.JwtUtil;
+
+import jakarta.validation.constraints.NotNull;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.AuthenticationManager;

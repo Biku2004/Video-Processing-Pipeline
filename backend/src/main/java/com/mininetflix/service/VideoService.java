@@ -1,6 +1,5 @@
 package com.mininetflix.service;
 
-import com.mininetflix.dto.AuthDto;
 import com.mininetflix.model.User;
 import com.mininetflix.model.Video;
 import com.mininetflix.model.Video.VideoStatus;
