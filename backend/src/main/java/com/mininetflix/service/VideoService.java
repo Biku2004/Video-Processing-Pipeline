@@ -182,8 +182,8 @@ public class VideoService {
         }
 
         return new StreamingInfo(
-                video.getMasterPlaylistUrl(),
-                video.getThumbnailUrl(),
+                s3Service.signUrl(video.getMasterPlaylistUrl()),
+                s3Service.signUrl(video.getThumbnailUrl()),
                 video.getDurationSeconds(),
                 video.isHas1080p(),
                 video.isHas720p(),
@@ -237,9 +237,23 @@ public class VideoService {
         Video video = videoRepository.findByIdAndUserId(videoId, user.getId())
                 .orElseThrow(() -> new IllegalArgumentException("Video not found: " + videoId));
 
+        // Hard delete from S3 to save costs
+        if (video.getOutputS3Prefix() != null) {
+            s3Service.deleteFolder(s3Service.getOutputBucket(), video.getOutputS3Prefix());
+            log.info("Deleted S3 output folder: {}", video.getOutputS3Prefix());
+        }
+
+        if (video.getInputS3Key() != null) {
+            s3Service.deleteRawUpload(video.getInputS3Key());
+        }
+
         video.setStatus(VideoStatus.DELETED);
+        // Clear URLs to prevent access
+        video.setMasterPlaylistUrl(null);
+        video.setThumbnailUrl(null);
+        
         videoRepository.save(video);
-        log.info("Soft-deleted video {} by user {}", videoId, user.getUsername());
+        log.info("Hard-deleted video files and soft-deleted DB record {} by user {}", videoId, user.getUsername());
     }
 
     // ==================== Scheduled Jobs ====================

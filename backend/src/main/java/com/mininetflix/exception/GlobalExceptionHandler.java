@@ -62,6 +62,16 @@ public class GlobalExceptionHandler {
         ));
     }
 
+    @ExceptionHandler(com.mininetflix.ratelimit.RateLimitService.RateLimitExceededException.class)
+    public ResponseEntity<Map<String, Object>> handleRateLimitExceeded(
+            com.mininetflix.ratelimit.RateLimitService.RateLimitExceededException ex) {
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS).body(Map.of(
+                "success", false,
+                "message", ex.getMessage(),
+                "timestamp", LocalDateTime.now().toString()
+        ));
+    }
+
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleGeneral(Exception ex) {
         log.error("Unhandled exception: ", ex);

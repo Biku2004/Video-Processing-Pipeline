@@ -53,8 +53,37 @@ export default function PlayerPage() {
     }
 
     if (Hls.isSupported()) {
+      // Custom Loader to propagate Signed URL query params (Policy, Signature) to segments
+      // HLS.js doesn't do this by default for relative paths if they are resolved without params
+      class SignedUrlLoader extends Hls.DefaultConfig.loader {
+        constructor(config) {
+          super(config)
+          const load = this.load.bind(this)
+          this.load = function (context, config, callbacks) {
+            // Check if URL needs signing (if it's targeting our CloudFront domain)
+            // simplest check: if master playlist has query params, append them to segments
+            try {
+              const masterUrl = new URL(src)
+              const query = masterUrl.search
+
+              if (query && context.url.indexOf('Policy=') === -1) {
+                // Determine separator
+                const separator = context.url.indexOf('?') === -1 ? '?' : '&'
+                // Append query params (remove leading ? from master query)
+                context.url += separator + query.substring(1)
+              }
+            } catch (e) {
+              // ignore URL parsing errors
+            }
+
+            load(context, config, callbacks)
+          }
+        }
+      }
+
       // HLS.js: supports Chrome, Firefox, Edge (most browsers)
       const hls = new Hls({
+        loader: SignedUrlLoader, // Use our custom loader
         enableWorker: true,
         lowLatencyMode: false,
         // Smart buffering: download in batches based on progress

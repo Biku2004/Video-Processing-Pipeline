@@ -12,7 +12,19 @@ import software.amazon.awssdk.services.s3.presigner.model.PutObjectPresignReques
 
 import java.time.Duration;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
+import software.amazon.awssdk.services.cloudfront.CloudFrontUtilities;
+import java.security.KeyFactory;
+import java.security.PrivateKey;
+import java.security.spec.PKCS8EncodedKeySpec;
+import java.nio.file.Files;
+import java.util.Base64;
+import software.amazon.awssdk.services.cloudfront.model.CustomSignerRequest;
+import software.amazon.awssdk.services.cloudfront.url.SignedUrl;
+import java.nio.file.Paths;
+import java.time.Instant;
+import java.time.temporal.ChronoUnit;
 
 @Service
 @RequiredArgsConstructor
@@ -33,6 +45,12 @@ public class S3Service {
 
     @Value("${aws.cloudfront.domain}")
     private String cloudFrontDomain;
+
+    @Value("${aws.cloudfront.key-pair-id}")
+    private String cloudFrontKeyPairId;
+
+    @Value("${aws.cloudfront.private-key-path}")
+    private String cloudFrontPrivateKeyPath;
 
     /**
      * Generate a pre-signed PUT URL for direct client-to-S3 upload.
@@ -131,4 +149,91 @@ public class S3Service {
 
     public String getInputBucket() { return inputBucket; }
     public String getOutputBucket() { return outputBucket; }
+
+    /**
+     * Delete all objects in a folder (prefix).
+     * Used for hard deletion of videos.
+     */
+    public void deleteFolder(String bucket, String prefix) {
+        try {
+            ListObjectsV2Request listRequest = ListObjectsV2Request.builder()
+                    .bucket(bucket)
+                    .prefix(prefix)
+                    .build();
+
+            ListObjectsV2Response listResponse;
+            do {
+                listResponse = s3Client.listObjectsV2(listRequest);
+                
+                if (listResponse.hasContents()) {
+                    List<ObjectIdentifier> objects = listResponse.contents().stream()
+                            .map(os -> ObjectIdentifier.builder().key(os.key()).build())
+                            .toList();
+
+                    s3Client.deleteObjects(DeleteObjectsRequest.builder()
+                            .bucket(bucket)
+                            .delete(Delete.builder().objects(objects).build())
+                            .build());
+                    
+                    log.info("Deleted {} objects from {}/{}", objects.size(), bucket, prefix);
+                }
+
+                listRequest = listRequest.toBuilder()
+                        .continuationToken(listResponse.nextContinuationToken())
+                        .build();
+                
+            } while (listResponse.isTruncated());
+            
+        } catch (Exception e) {
+            log.error("Failed to delete folder {}/{}: {}", bucket, prefix, e.getMessage());
+        }
+    }
+
+    /**
+     * Sign the master playlist URL with CloudFront Custom Policy.
+     * Allows access to "processed/{videoId}/*" so segments can be fetched.
+     */
+    public String signUrl(String masterPlaylistUrl) {
+        try {
+            // URL: https://d1.../processed/UUID/master.m3u8
+            // Resource: https://d1.../processed/UUID/*
+            String resourcePath = masterPlaylistUrl.substring(0, masterPlaylistUrl.lastIndexOf('/') + 1) + "*";
+            
+            Instant expirationDate = Instant.now().plus(6, ChronoUnit.HOURS);
+            
+            CloudFrontUtilities cloudFrontUtilities = CloudFrontUtilities.create();
+            CustomSignerRequest customSignerRequest = CustomSignerRequest.builder()
+                    .resourceUrl(resourcePath)
+                    .privateKey(loadPrivateKey(cloudFrontPrivateKeyPath))
+                    .keyPairId(cloudFrontKeyPairId)
+                    .expirationDate(expirationDate)
+                    .build();
+            
+            SignedUrl signedUrl = cloudFrontUtilities.getSignedUrlWithCustomPolicy(customSignerRequest);
+            
+            // Extract query params from the signed URL (which is the resource URL + query params)
+            String signatureQuery = signedUrl.url().substring(signedUrl.url().indexOf('?') + 1);
+            
+            return masterPlaylistUrl + "?" + signatureQuery;
+            
+        } catch (Exception e) {
+            log.error("Failed to sign URL. KeyPairId: {}, Path: {}", cloudFrontKeyPairId, cloudFrontPrivateKeyPath, e);
+            return masterPlaylistUrl;
+        }
+    }
+
+    private PrivateKey loadPrivateKey(String path) throws Exception {
+        String keyContent = Files.readString(Paths.get(path));
+        
+        // Remove headers/footers and newlines
+        String privateKeyPEM = keyContent
+                .replace("-----BEGIN PRIVATE KEY-----", "")
+                .replace("-----END PRIVATE KEY-----", "")
+                .replaceAll("\\s", "");
+
+        byte[] encoded = Base64.getDecoder().decode(privateKeyPEM);
+        KeyFactory keyFactory = KeyFactory.getInstance("RSA");
+        PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(encoded);
+        return keyFactory.generatePrivate(keySpec);
+    }
 }

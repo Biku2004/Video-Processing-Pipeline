@@ -97,6 +97,17 @@
             <artifactId>mediaconvert</artifactId>
             <version>${aws.sdk.version}</version>
         </dependency>
+        <dependency>
+            <groupId>software.amazon.awssdk</groupId>
+            <artifactId>cloudfront</artifactId>
+            <version>${aws.sdk.version}</version>
+        </dependency>
+        <!-- Environment Variables (.env file support) -->
+        <dependency>
+            <groupId>me.paulschwarz</groupId>
+            <artifactId>spring-dotenv</artifactId>
+            <version>4.0.0</version>
+        </dependency>
 
         <!-- Rate Limiting with Bucket4j + Redis -->
         <dependency>
@@ -121,12 +132,7 @@
             <artifactId>micrometer-registry-prometheus</artifactId>
         </dependency>
 
-        <!-- Environment Variables (.env file support) -->
-        <dependency>
-            <groupId>me.paulschwarz</groupId>
-            <artifactId>spring-dotenv</artifactId>
-            <version>4.0.0</version>
-        </dependency>
+
 
         <!-- Test -->
         <dependency>
