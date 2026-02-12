@@ -1,0 +1,87 @@
+version: '3.9'
+
+services:
+  # ── PostgreSQL (Production DB) ──────────────────────────────────
+  postgres:
+    image: postgres:15-alpine
+    container_name: mininetflix-postgres
+    environment:
+      POSTGRES_DB: mininetflix
+      POSTGRES_USER: mininetflix
+      POSTGRES_PASSWORD: mininetflix123
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U mininetflix"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ── Redis (Rate Limiting) ─────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: mininetflix-redis
+    ports:
+      - "6379:6379"
+    command: redis-server --maxmemory 256mb --maxmemory-policy allkeys-lru
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 3
+
+  # ── Spring Boot Backend ───────────────────────────────────────
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: mininetflix-backend
+    ports:
+      - "8080:8080"
+    environment:
+      # Database
+      DB_URL: jdbc:postgresql://postgres:5432/mininetflix
+      DB_USERNAME: mininetflix
+      DB_PASSWORD: mininetflix123
+      DB_DRIVER: org.postgresql.Driver
+      DB_DIALECT: org.hibernate.dialect.PostgreSQLDialect
+      # Redis
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      # JWT
+      JWT_SECRET: ${JWT_SECRET:-mininetflix-super-secret-key-must-be-256bits-long-for-hmac}
+      JWT_EXPIRATION: 86400000
+      # AWS (provide via .env file)
+      AWS_REGION: ${AWS_REGION:-ap-south-1}
+      AWS_ACCESS_KEY_ID: ${AWS_ACCESS_KEY_ID:-}
+      AWS_SECRET_ACCESS_KEY: ${AWS_SECRET_ACCESS_KEY:-}
+      S3_INPUT_BUCKET: ${S3_INPUT_BUCKET:-mininetflix-input}
+      S3_OUTPUT_BUCKET: ${S3_OUTPUT_BUCKET:-mininetflix-output}
+      SQS_QUEUE_URL: ${SQS_QUEUE_URL:-}
+      SQS_DLQ_URL: ${SQS_DLQ_URL:-}
+      MEDIACONVERT_ENDPOINT: ${MEDIACONVERT_ENDPOINT:-}
+      MEDIACONVERT_ROLE_ARN: ${MEDIACONVERT_ROLE_ARN:-}
+      CLOUDFRONT_DOMAIN: ${CLOUDFRONT_DOMAIN:-}
+      CORS_ORIGINS: http://localhost:3000,http://localhost:5173
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: on-failure
+
+  # ── React Frontend ─────────────────────────────────────────────
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: mininetflix-frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:

@@ -1,0 +1,167 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: MiniNetflix Video Processing Pipeline Infrastructure
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: mininetflix
+
+Resources:
+  # ══════════════════════════════════════════════════
+  # S3 BUCKETS
+  # ══════════════════════════════════════════════════
+
+  InputBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${ProjectName}-input-${AWS::AccountId}'
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders: ['*']
+            AllowedMethods: [PUT]
+            AllowedOrigins: ['*']
+            MaxAge: 3600
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteRawAfter7Days
+            Status: Enabled
+            ExpirationInDays: 7   # Cost optimization: delete raw uploads
+
+  OutputBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub '${ProjectName}-output-${AWS::AccountId}'
+      LifecycleConfiguration:
+        Rules:
+          - Id: MoveToGlacierAfter30Days
+            Status: Enabled
+            Transitions:
+              - TransitionInDays: 30
+                StorageClass: GLACIER
+
+  OutputBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref OutputBucket
+      PolicyDocument:
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: cloudfront.amazonaws.com
+            Action: s3:GetObject
+            Resource: !Sub '${OutputBucket.Arn}/*'
+
+  # ══════════════════════════════════════════════════
+  # SQS QUEUES (with DLQ for fault tolerance)
+  # ══════════════════════════════════════════════════
+
+  VideoJobsDLQ:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub '${ProjectName}-jobs-dlq.fifo'
+      FifoQueue: true
+      MessageRetentionPeriod: 1209600  # 14 days
+
+  VideoJobsQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub '${ProjectName}-jobs.fifo'
+      FifoQueue: true
+      ContentBasedDeduplication: true
+      VisibilityTimeout: 300          # 5 minutes
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt VideoJobsDLQ.Arn
+        maxReceiveCount: 3            # Retry 3 times before DLQ
+
+  # ══════════════════════════════════════════════════
+  # IAM ROLE FOR MEDIACONVERT (Least Privilege)
+  # ══════════════════════════════════════════════════
+
+  MediaConvertRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub '${ProjectName}-mediaconvert-role'
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: mediaconvert.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: MediaConvertS3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action: ['s3:GetObject']
+                Resource: !Sub '${InputBucket.Arn}/*'
+              - Effect: Allow
+                Action: ['s3:PutObject']
+                Resource: !Sub '${OutputBucket.Arn}/*'
+
+  # ══════════════════════════════════════════════════
+  # CLOUDFRONT CDN (for video delivery)
+  # ══════════════════════════════════════════════════
+
+  CloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Origins:
+          - Id: S3Output
+            DomainName: !GetAtt OutputBucket.RegionalDomainName
+            S3OriginConfig:
+              OriginAccessIdentity: ''
+        DefaultCacheBehavior:
+          TargetOriginId: S3Output
+          ViewerProtocolPolicy: redirect-to-https
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6  # Managed-CachingOptimized
+          Compress: true
+        CacheBehaviors:
+          - PathPattern: '*.m3u8'
+            TargetOriginId: S3Output
+            ViewerProtocolPolicy: redirect-to-https
+            DefaultTTL: 0           # HLS playlists should not be cached long
+            MaxTTL: 60
+            MinTTL: 0
+            CachePolicyId: 4135ea2d-6df8-44a3-9df3-4b5a84be39ad  # Managed-CachingDisabled
+            Compress: false
+        Enabled: true
+        HttpVersion: http2
+        PriceClass: PriceClass_200
+
+  # ══════════════════════════════════════════════════
+  # CLOUDWATCH ALARMS (Observability)
+  # ══════════════════════════════════════════════════
+
+  DLQDepthAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub '${ProjectName}-dlq-messages'
+      AlarmDescription: 'DLQ has messages - encoding failures detected'
+      MetricName: ApproximateNumberOfMessagesVisible
+      Namespace: AWS/SQS
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt VideoJobsDLQ.QueueName
+      Statistic: Sum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanOrEqualToThreshold
+      TreatMissingData: notBreaching
+
+Outputs:
+  InputBucketName:
+    Value: !Ref InputBucket
+  OutputBucketName:
+    Value: !Ref OutputBucket
+  VideoJobsQueueUrl:
+    Value: !Ref VideoJobsQueue
+  VideoJobsDLQUrl:
+    Value: !Ref VideoJobsDLQ
+  MediaConvertRoleArn:
+    Value: !GetAtt MediaConvertRole.Arn
+  CloudFrontDomain:
+    Value: !Sub 'https://${CloudFrontDistribution.DomainName}'

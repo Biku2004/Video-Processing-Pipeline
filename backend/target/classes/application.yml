@@ -1,0 +1,104 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: mininetflix-pipeline
+
+  # --- Database (PostgreSQL for prod, H2 for local dev) ---
+  datasource:
+    url: ${DB_URL:jdbc:h2:mem:mininetflix;DB_CLOSE_DELAY=-1}
+    username: ${DB_USERNAME:sa}
+    password: ${DB_PASSWORD:}
+    driver-class-name: ${DB_DRIVER:org.h2.Driver}
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        dialect: ${DB_DIALECT:org.hibernate.dialect.H2Dialect}
+        format_sql: true
+
+  h2:
+    console:
+      enabled: true
+      path: /h2-console
+
+  # --- Redis (Rate Limiting) ---
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      password: ${REDIS_PASSWORD:}
+      timeout: 2000ms
+      connect-timeout: 2000ms
+
+  # --- Security ---
+  security:
+    user:
+      name: admin
+
+# --- JWT Configuration ---
+jwt:
+  secret: ${JWT_SECRET:mininetflix-super-secret-key-must-be-at-least-256bits-long-for-hs256}
+  expiration: ${JWT_EXPIRATION:86400000}  # 24 hours in ms
+
+# --- AWS Configuration ---
+aws:
+  region: ${AWS_REGION:ap-south-1}
+  access-key: ${AWS_ACCESS_KEY_ID:}
+  secret-key: ${AWS_SECRET_ACCESS_KEY:}
+
+  s3:
+    input-bucket: ${S3_INPUT_BUCKET:mininetflix-input}
+    output-bucket: ${S3_OUTPUT_BUCKET:mininetflix-output}
+    presigned-url-expiry: 300  # 5 minutes in seconds
+
+  sqs:
+    queue-url: ${SQS_QUEUE_URL:https://sqs.ap-south-1.amazonaws.com/ACCOUNT_ID/mininetflix-jobs}
+    dlq-url: ${SQS_DLQ_URL:https://sqs.ap-south-1.amazonaws.com/ACCOUNT_ID/mininetflix-jobs-dlq}
+
+  mediaconvert:
+    endpoint: ${MEDIACONVERT_ENDPOINT:https://ENDPOINT_ID.mediaconvert.ap-south-1.amazonaws.com}
+    role-arn: ${MEDIACONVERT_ROLE_ARN:arn:aws:iam::ACCOUNT_ID:role/MediaConvertRole}
+    output-prefix: ${MEDIACONVERT_OUTPUT_PREFIX:processed/}
+
+  cloudfront:
+    domain: ${CLOUDFRONT_DOMAIN:https://your-distribution.cloudfront.net}
+    key-pair-id: ${CLOUDFRONT_KEY_PAIR_ID:}
+    private-key-path: ${CLOUDFRONT_PRIVATE_KEY_PATH:}
+
+# --- Rate Limiting ---
+rate-limit:
+  free-tier:
+    uploads-per-day: 3
+    max-file-size-mb: 500
+  pro-tier:
+    uploads-per-day: 50
+    max-file-size-mb: 5000
+
+# --- Actuator / Metrics ---
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health, info, metrics, prometheus
+  endpoint:
+    health:
+      show-details: always
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+# --- CORS ---
+cors:
+  allowed-origins: ${CORS_ORIGINS:http://localhost:3000,http://localhost:5173}
+
+logging:
+  level:
+    com.mininetflix: DEBUG
+    org.springframework.security: WARN
+    software.amazon.awssdk: WARN
