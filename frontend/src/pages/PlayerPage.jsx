@@ -57,6 +57,11 @@ export default function PlayerPage() {
       const hls = new Hls({
         enableWorker: true,
         lowLatencyMode: false,
+        // Smart buffering: download in batches based on progress
+        maxBufferLength: 10,          // Keep 10s of buffer ahead of playback position
+        maxMaxBufferLength: 20,       // Max allowed buffer length (20s)
+        maxBufferSize: 60 * 1000 * 1000, // Max 60MB buffer size
+        backBufferLength: 30,         // Keep 30s of back buffer for rewinding
         // Adaptive bitrate config
         startLevel: -1,       // auto start quality
         abrEwmaFastLive: 3,   // fast adaptation
@@ -69,7 +74,7 @@ export default function PlayerPage() {
       hls.attachMedia(videoEl)
 
       hls.on(Hls.Events.MANIFEST_PARSED, () => {
-        videoEl.play().catch(() => {/* autoplay blocked */})
+        videoEl.play().catch(() => {/* autoplay blocked */ })
       })
 
       // Track current quality level for display
@@ -101,7 +106,7 @@ export default function PlayerPage() {
     } else if (videoEl.canPlayType('application/vnd.apple.mpegurl')) {
       // Native HLS: Safari
       videoEl.src = src
-      videoEl.play().catch(() => {})
+      videoEl.play().catch(() => { })
     } else {
       setError('Your browser does not support HLS streaming.')
     }
@@ -120,8 +125,8 @@ export default function PlayerPage() {
     const m = Math.floor((secs % 3600) / 60)
     const s = secs % 60
     return h > 0
-      ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
-      : `${m}:${String(s).padStart(2,'0')}`
+      ? `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`
+      : `${m}:${String(s).padStart(2, '0')}`
   }
 
   if (loading) {
