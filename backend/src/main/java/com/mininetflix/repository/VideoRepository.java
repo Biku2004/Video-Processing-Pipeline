@@ -19,7 +19,7 @@ public interface VideoRepository extends JpaRepository<Video, String> {
 
     boolean existsByIdAndMediaConvertJobId(String id, String jobId);
 
-    @Query("SELECT COUNT(v) FROM Video v WHERE v.user.id = :userId AND v.status != 'DELETED' AND DATE(v.createdAt) = CURRENT_DATE")
+    @Query("SELECT COUNT(v) FROM Video v WHERE v.user.id = :userId AND v.status != 'DELETED' AND CAST(v.createdAt AS date) = CURRENT_DATE")
     long countTodayUploads(@Param("userId") String userId);
 
     List<Video> findByStatusIn(List<VideoStatus> statuses);

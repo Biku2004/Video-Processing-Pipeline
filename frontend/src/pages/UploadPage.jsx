@@ -7,8 +7,8 @@ import toast from 'react-hot-toast'
 
 const UPLOAD_STEPS = [
   { id: 1, label: 'Get Upload URL', desc: 'Backend generates a presigned S3 URL' },
-  { id: 2, label: 'Upload to S3',   desc: 'File goes directly to S3 — no backend bottleneck' },
-  { id: 3, label: 'Queue Job',      desc: 'Trigger async MediaConvert transcoding pipeline' },
+  { id: 2, label: 'Upload to S3', desc: 'File goes directly to S3 — no backend bottleneck' },
+  { id: 3, label: 'Queue Job', desc: 'Trigger async MediaConvert transcoding pipeline' },
 ]
 
 export default function UploadPage() {
@@ -69,14 +69,18 @@ export default function UploadPage() {
         file.size,
         title || file.name
       )
-      // Response: { videoId, uploadUrl, s3Key, expiresInSeconds }
-      const { videoId, uploadUrl } = urlData
+      // Response: { videoId, uploadUrl, s3Key, expiresInSeconds, userId }
+      const { videoId, uploadUrl, userId } = urlData
 
       // ── Step 2: Upload directly to S3 with presigned URL ─────────────
       // This does NOT go through our backend → scalable!
+      // Must include x-amz-meta-* headers that match the presigned URL signature
       setStep(2)
       setProgress(0)
-      await uploadToS3(uploadUrl, file, (pct) => setProgress(pct))
+      await uploadToS3(uploadUrl, file, {
+        'x-amz-meta-video-id': videoId,
+        'x-amz-meta-user-id': userId
+      }, (pct) => setProgress(pct))
 
       // ── Step 3: Confirm upload + trigger processing pipeline ─────────
       // POST /api/videos/{videoId}/confirm

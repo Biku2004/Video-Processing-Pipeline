@@ -45,8 +45,8 @@ export default function RegisterPage() {
     }
   }
 
-  const Field = ({ name, label, type = 'text', placeholder, icon: Icon }) => (
-    <div className="input-group">
+  const renderField = (name, label, type, placeholder, Icon) => (
+    <div className="input-group" key={name}>
       <label className="input-label">{label}</label>
       <div style={{ position: 'relative' }}>
         <Icon size={14} style={{
@@ -54,7 +54,7 @@ export default function RegisterPage() {
           color: 'var(--text-muted)', pointerEvents: 'none'
         }} />
         <input
-          type={type}
+          type={type || 'text'}
           className={`input-field ${errors[name] ? 'error' : ''}`}
           style={{ paddingLeft: 36 }}
           placeholder={placeholder}
@@ -122,10 +122,10 @@ export default function RegisterPage() {
 
         <div className="card" style={{ padding: 32 }}>
           <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 18 }}>
-            <Field name="username" label="Username" placeholder="johndoe" icon={User} />
-            <Field name="email" label="Email Address" type="email" placeholder="you@example.com" icon={Mail} />
-            <Field name="password" label="Password" type="password" placeholder="min. 8 characters" icon={Lock} />
-            <Field name="confirm" label="Confirm Password" type="password" placeholder="repeat password" icon={Lock} />
+            {renderField('username', 'Username', 'text', 'johndoe', User)}
+            {renderField('email', 'Email Address', 'email', 'you@example.com', Mail)}
+            {renderField('password', 'Password', 'password', 'min. 8 characters', Lock)}
+            {renderField('confirm', 'Confirm Password', 'password', 'repeat password', Lock)}
 
             <button
               type="submit"

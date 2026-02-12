@@ -7,9 +7,9 @@ Parameters:
     Default: mininetflix
 
 Resources:
-  # ══════════════════════════════════════════════════
+  # ==================================================
   # S3 BUCKETS
-  # ══════════════════════════════════════════════════
+  # ==================================================
 
   InputBucket:
     Type: AWS::S3::Bucket
@@ -17,10 +17,10 @@ Resources:
       BucketName: !Sub '${ProjectName}-input-${AWS::AccountId}'
       CorsConfiguration:
         CorsRules:
-          - AllowedHeaders: ['*']
-            AllowedMethods: [PUT]
-            AllowedOrigins: ['*']
-            MaxAge: 3600
+        - AllowedHeaders: ['*']
+          AllowedMethods: [PUT, POST]
+          AllowedOrigins: ['http://localhost:3000', 'http://localhost:5173']
+          MaxAge: 3600
       LifecycleConfiguration:
         Rules:
           - Id: DeleteRawAfter7Days
@@ -51,9 +51,9 @@ Resources:
             Action: s3:GetObject
             Resource: !Sub '${OutputBucket.Arn}/*'
 
-  # ══════════════════════════════════════════════════
+  # ==================================================
   # SQS QUEUES (with DLQ for fault tolerance)
-  # ══════════════════════════════════════════════════
+  # ==================================================
 
   VideoJobsDLQ:
     Type: AWS::SQS::Queue
@@ -73,9 +73,9 @@ Resources:
         deadLetterTargetArn: !GetAtt VideoJobsDLQ.Arn
         maxReceiveCount: 3            # Retry 3 times before DLQ
 
-  # ══════════════════════════════════════════════════
+  # ==================================================
   # IAM ROLE FOR MEDIACONVERT (Least Privilege)
-  # ══════════════════════════════════════════════════
+  # ==================================================
 
   MediaConvertRole:
     Type: AWS::IAM::Role
@@ -100,9 +100,9 @@ Resources:
                 Action: ['s3:PutObject']
                 Resource: !Sub '${OutputBucket.Arn}/*'
 
-  # ══════════════════════════════════════════════════
+  # ==================================================
   # CLOUDFRONT CDN (for video delivery)
-  # ══════════════════════════════════════════════════
+  # ==================================================
 
   CloudFrontDistribution:
     Type: AWS::CloudFront::Distribution
@@ -131,9 +131,9 @@ Resources:
         HttpVersion: http2
         PriceClass: PriceClass_200
 
-  # ══════════════════════════════════════════════════
+  # ==================================================
   # CLOUDWATCH ALARMS (Observability)
-  # ══════════════════════════════════════════════════
+  # ==================================================
 
   DLQDepthAlarm:
     Type: AWS::CloudWatch::Alarm

@@ -78,7 +78,8 @@ public class VideoController {
                     "videoId", result.videoId(),
                     "uploadUrl", result.uploadUrl(),
                     "s3Key", result.s3Key(),
-                    "expiresInSeconds", result.expiresInSeconds()
+                    "expiresInSeconds", result.expiresInSeconds(),
+                    "userId", user.getId()
             ));
         } catch (RateLimitService.RateLimitExceededException e) {
             return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)

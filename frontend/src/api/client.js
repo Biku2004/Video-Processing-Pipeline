@@ -124,7 +124,7 @@ export const videoApi = {
 // S3 DIRECT UPLOAD — Upload file directly to S3 using presigned URL
 // This is separate from the api instance - goes directly to S3 (not backend)
 // =====================================================================
-export const uploadToS3 = async (presignedUrl, file, onProgress) => {
+export const uploadToS3 = async (presignedUrl, file, metadata, onProgress) => {
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest()
 
@@ -148,6 +148,12 @@ export const uploadToS3 = async (presignedUrl, file, onProgress) => {
 
     xhr.open('PUT', presignedUrl)
     xhr.setRequestHeader('Content-Type', file.type)
+    // Must send the same x-amz-meta-* headers that were signed in the presigned URL
+    if (metadata) {
+      Object.entries(metadata).forEach(([key, value]) => {
+        xhr.setRequestHeader(key, value)
+      })
+    }
     xhr.send(file)
   })
 }

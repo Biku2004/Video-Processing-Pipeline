@@ -64,9 +64,32 @@ public class S3Service {
 
     /**
      * Build the CloudFront URL for a processed video's master playlist.
+     * MediaConvert names files based on input filename, not "master.m3u8",
+     * so we search S3 for the master playlist (.m3u8 without resolution suffix).
      */
     public String buildStreamingUrl(String outputPrefix) {
-        return cloudFrontDomain + "/" + outputPrefix + "master.m3u8";
+        try {
+            ListObjectsV2Request listRequest = ListObjectsV2Request.builder()
+                    .bucket(outputBucket)
+                    .prefix(outputPrefix)
+                    .build();
+
+            ListObjectsV2Response response = s3Client.listObjectsV2(listRequest);
+
+            // Find the master playlist: ends with .m3u8 but NOT a variant (e.g., _480p.m3u8)
+            String masterKey = response.contents().stream()
+                    .map(S3Object::key)
+                    .filter(key -> key.endsWith(".m3u8"))
+                    .filter(key -> !key.matches(".*_\\d+p\\.m3u8$"))
+                    .findFirst()
+                    .orElse(outputPrefix + "master.m3u8"); // fallback
+
+            log.info("Found master playlist: {}", masterKey);
+            return cloudFrontDomain + "/" + masterKey;
+        } catch (Exception e) {
+            log.warn("Failed to find master playlist in {}: {}", outputPrefix, e.getMessage());
+            return cloudFrontDomain + "/" + outputPrefix + "master.m3u8";
+        }
     }
 
     /**

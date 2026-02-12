@@ -40,22 +40,24 @@ public class VideoService {
         rateLimitService.checkUploadLimit(user);
         rateLimitService.checkFileSizeLimit(user, fileSizeBytes);
 
-        String videoId = UUID.randomUUID().toString();
         String sanitizedFilename = sanitizeFilename(filename);
-        String s3Key = "uploads/" + user.getId() + "/" + videoId + "/" + sanitizedFilename;
 
-        // Save video metadata to DB in UPLOADED state
+        // Save video metadata to DB first — let JPA generate the UUID
         Video video = Video.builder()
-                .id(videoId)
                 .title(title != null && !title.isBlank() ? title : extractTitleFromFilename(filename))
                 .originalFilename(filename)
                 .user(user)
                 .status(VideoStatus.UPLOADED)
-                .inputS3Key(s3Key)
-                .outputS3Prefix("processed/" + videoId + "/")
                 .fileSizeBytes(fileSizeBytes)
                 .build();
 
+        video = videoRepository.save(video);
+
+        // Now use the JPA-generated ID for S3 key
+        String videoId = video.getId();
+        String s3Key = "uploads/" + user.getId() + "/" + videoId + "/" + sanitizedFilename;
+        video.setInputS3Key(s3Key);
+        video.setOutputS3Prefix("processed/" + videoId + "/");
         videoRepository.save(video);
 
         // Generate presigned URL (5-min expiry)
