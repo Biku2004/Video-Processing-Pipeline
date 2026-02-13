@@ -83,7 +83,12 @@ public class S3Service {
     /**
      * Build the CloudFront URL for a processed video's master playlist.
      * MediaConvert names files based on input filename, not "master.m3u8",
-     * so we search S3 for the master playlist (.m3u8 without resolution suffix).
+     * so we search S3 for the master playlist.
+     *
+     * Detection strategy: The master playlist's base name is always a prefix of
+     * variant playlist names (e.g., master: "video.m3u8", variants: "video_480p.m3u8").
+     * We find the .m3u8 whose base name is a prefix of at least one other .m3u8.
+     * If only one .m3u8 exists, that IS the master (single-resolution output).
      */
     public String buildStreamingUrl(String outputPrefix) {
         try {
@@ -94,15 +99,32 @@ public class S3Service {
 
             ListObjectsV2Response response = s3Client.listObjectsV2(listRequest);
 
-            // Find the master playlist: ends with .m3u8 but NOT a variant (e.g., _480p.m3u8)
-            String masterKey = response.contents().stream()
+            List<String> m3u8Keys = response.contents().stream()
                     .map(S3Object::key)
                     .filter(key -> key.endsWith(".m3u8"))
-                    .filter(key -> !key.matches(".*_\\d+p\\.m3u8$"))
-                    .findFirst()
-                    .orElse(outputPrefix + "master.m3u8"); // fallback
+                    .toList();
 
-            log.info("Found master playlist: {}", masterKey);
+            String masterKey;
+            if (m3u8Keys.size() == 1) {
+                // Only one playlist — it's both the master and sole variant
+                masterKey = m3u8Keys.get(0);
+            } else {
+                // The master's base name (without .m3u8) is a prefix of variant names.
+                // e.g., master: "video_2160p.m3u8" → base: "video_2160p"
+                //        variant: "video_2160p_480p.m3u8" starts with "video_2160p"
+                masterKey = m3u8Keys.stream()
+                        .filter(candidate -> {
+                            String base = candidate.substring(0, candidate.length() - ".m3u8".length());
+                            return m3u8Keys.stream()
+                                    .anyMatch(other -> !other.equals(candidate) && other.startsWith(base + "_"));
+                        })
+                        .findFirst()
+                        .orElse(m3u8Keys.stream()  // secondary fallback: shortest name
+                                .min((a, b) -> Integer.compare(a.length(), b.length()))
+                                .orElse(outputPrefix + "master.m3u8"));
+            }
+
+            log.info("Found master playlist: {} (from {} .m3u8 files)", masterKey, m3u8Keys.size());
             return cloudFrontDomain + "/" + masterKey;
         } catch (Exception e) {
             log.warn("Failed to find master playlist in {}: {}", outputPrefix, e.getMessage());

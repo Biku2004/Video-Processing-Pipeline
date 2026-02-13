@@ -172,7 +172,10 @@ public class VideoService {
     /**
      * Get streaming URL for ready video.
      * Returns CloudFront HLS URL for adaptive bitrate streaming.
+     * Dynamically resolves the master playlist URL from S3 to handle
+     * cases where the stored URL might be stale or incorrect.
      */
+    @Transactional
     public StreamingInfo getStreamingInfo(User user, String videoId) {
         Video video = videoRepository.findByIdAndUserId(videoId, user.getId())
                 .orElseThrow(() -> new IllegalArgumentException("Video not found: " + videoId));
@@ -181,8 +184,18 @@ public class VideoService {
             throw new IllegalStateException("Video is not ready for streaming. Status: " + video.getStatus());
         }
 
+        // Always resolve the master playlist URL dynamically from S3
+        // This fixes stale/incorrect URLs stored from earlier buggy detection logic
+        String resolvedUrl = s3Service.buildStreamingUrl(video.getOutputS3Prefix());
+        if (!resolvedUrl.equals(video.getMasterPlaylistUrl())) {
+            log.info("Updating stale master playlist URL for video {}: {} -> {}",
+                    videoId, video.getMasterPlaylistUrl(), resolvedUrl);
+            video.setMasterPlaylistUrl(resolvedUrl);
+            videoRepository.save(video);
+        }
+
         return new StreamingInfo(
-                s3Service.signUrl(video.getMasterPlaylistUrl()),
+                s3Service.signUrl(resolvedUrl),
                 s3Service.signUrl(video.getThumbnailUrl()),
                 video.getDurationSeconds(),
                 video.isHas1080p(),

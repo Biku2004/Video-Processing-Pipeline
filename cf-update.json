@@ -37,8 +37,11 @@
       "Quantity": 0
     },
     "TrustedKeyGroups": {
-      "Enabled": false,
-      "Quantity": 0
+      "Enabled": true,
+      "Quantity": 1,
+      "Items": [
+        "eaba7913-78a4-4589-a2f6-49076d200c7a"
+      ]
     },
     "ViewerProtocolPolicy": "redirect-to-https",
     "AllowedMethods": {
@@ -81,8 +84,11 @@
           "Quantity": 0
         },
         "TrustedKeyGroups": {
-          "Enabled": false,
-          "Quantity": 0
+          "Enabled": true,
+          "Quantity": 1,
+          "Items": [
+            "eaba7913-78a4-4589-a2f6-49076d200c7a"
+          ]
         },
         "ViewerProtocolPolicy": "redirect-to-https",
         "AllowedMethods": {
